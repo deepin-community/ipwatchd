@@ -1,5 +1,5 @@
 /* IPwatchD - IP conflict detection tool for Linux
- * Copyright (C) 2007-2010 Jaroslav Imrich <jariq(at)jariq(dot)sk>
+ * Copyright (C) 2007-2018 Jaroslav Imrich <jariq(at)jariq(dot)sk>
  * 
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -72,6 +72,8 @@ int ipwd_read_config (const char *filename)
 
 	pcap_t *h_pcap = NULL;
 	char errbuf[PCAP_ERRBUF_SIZE];
+
+	int iface_len = 0;
 
 	// Initialize structures with default values
 	config.facility = LOG_DAEMON;
@@ -323,7 +325,12 @@ int ipwd_read_config (const char *filename)
 			}
 
 			memset (devices.dev[devices.devnum].device, '\0', IPWD_MAX_DEVICE_NAME_LEN);
-			strncpy (devices.dev[devices.devnum].device, variable, IPWD_MAX_DEVICE_NAME_LEN - 1);
+			iface_len = snprintf (devices.dev[devices.devnum].device, IPWD_MAX_DEVICE_NAME_LEN, "%s", variable);
+			if (iface_len < 1 || iface_len > IPWD_MAX_DEVICE_NAME_LEN - 1)
+			{
+				ipwd_message (IPWD_MSG_TYPE_ERROR, "Interface name \"%s\" is not valid", variable);
+				return (IPWD_RV_ERROR);
+			}
 
 			if (strcasecmp (value, "active") == 0)
 			{

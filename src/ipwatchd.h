@@ -1,5 +1,5 @@
 /* IPwatchD - IP conflict detection tool for Linux
- * Copyright (C) 2007-2010 Jaroslav Imrich <jariq(at)jariq(dot)sk>
+ * Copyright (C) 2007-2018 Jaroslav Imrich <jariq(at)jariq(dot)sk>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -45,7 +45,7 @@
 
 
 //! String with IPwatchD version information
-#define IPWATCHD_VERSION "IPwatchD 1.2.1"
+#define IPWATCHD_VERSION "IPwatchD 1.3.0"
 
 //! Absolute path to pid file
 #define IPWD_PIDFILE "/var/run/ipwatchd.pid"
@@ -117,7 +117,7 @@ IPWD_S_CONFIG;
 /* Network device information */
 
 //! Size of buffer used for the name of the device
-#define IPWD_MAX_DEVICE_NAME_LEN 10
+#define IPWD_MAX_DEVICE_NAME_LEN IFNAMSIZ
 
 //! Size of buffer used for IP and MAC address of the device
 #define IPWD_MAX_DEVICE_ADDRESS_LEN 20
@@ -173,7 +173,7 @@ IPWD_S_ARP_HEADER;
 
 /* IPwatchD internal functions - described in corresponding source files */
 
-// \cond - Doxygen ignore block start
+// \cond Doxygen ignore block start
 
 /* analyse.c */
 void ipwd_analyse (u_char * args, const struct pcap_pkthdr *header, const u_char * packet);
@@ -204,5 +204,5 @@ void ipwd_message (IPWD_MSG_TYPE type, const char *format, ...);
 int ipwd_set_signal_handler (void);
 void ipwd_signal_handler (int signal);
 
-// \endcond - Doxygen ignore block end
+// \endcond Doxygen ignore block end
 
