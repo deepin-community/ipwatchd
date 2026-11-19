@@ -1,3 +1,39 @@
+ipwatchd (2.0.2+really1.3.0-0deepin2) unstable; urgency=medium
+
+  * chore: fix debian lintian error
+  * feat: 增加主动IP冲突探测，支持dbus
+  * fix: 使用pkg-config 查找路径
+  * fix: ipwatchd 默认使用 active 模式
+  * fix: 优化ipwatchd CPU使用率
+  * refactor: 调整dbus的交互方式
+  * fix: 增加dbus service文件
+  * fix: 设备名称长度不够
+  * fix: 修复本地网卡回复ARP包问题
+  * fix: 修复错误的IP地址导致IP冲突
+  * fix: Makefile CFLAGS 不生效
+  * chore: 增加 euler 打包脚本
+  * fix: 内存泄漏
+  * fix: 编译选项安全加固
+  * fix: 优化dbus消息调用逻辑
+  * Revert "fix: 优化dbus消息调用逻辑"
+  * feat: 增加IP冲突解除的信号发送
+  * fix: 增加Introspect接口
+  * fix: 修复在网络断开情况下无法检测冲突的问题
+  * fix: 修复冲突解除后无法发送解除冲突信号
+  * fix: 修复单网卡情况下多ip冲突无法检测的问题
+  * fix: 优化pcap数据包捕获的超时设置
+  * feat: 添加DBus接口Polkit权限验证
+  * fix: 修复用户脚本执行的命令注入漏洞
+  * fix: 限制用户脚本路径为固定值
+  * feat: 引入securityloader安全鉴权模块
+  * feat: 实现安全加载器状态持久化功能
+  * chore: 补充IP冲突检查的多语言翻译
+  * fix: 移除Polkit授权并强制要求Root权限
+  * fix: 修复无网卡时启动失败并完善 D-Bus 消息回复
+  * fix: ipwatchd 服务启动失败时降级为告警
+
+ -- caixiangrong <caixiangrong@uniontech.com>  Thu, 19 Nov 2026 16:10:00 +0800
+
 ipwatchd (2.0.2+really1.3.0-0deepin1) unstable; urgency=medium
 
   * Fix error changelog

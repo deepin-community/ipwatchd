@@ -2,13 +2,13 @@ Source: ipwatchd
 Section: net
 Priority: optional
 Maintainer: Deepin Developer <deepin-dev@deepin.org>
-Build-Depends: debhelper (>= 7), libpcap-dev, libnet1-dev
+Build-Depends: debhelper (>= 7), libpcap-dev, libnet1-dev, libdbus-1-dev, libpolkit-gobject-1-dev, libjson-c-dev
 Standards-Version: 3.9.2
 Homepage: http://ipwatchd.sf.net
 
 Package: ipwatchd
 Architecture: linux-any
-Depends: ${shlibs:Depends}, ${misc:Depends}
+Depends: ${shlibs:Depends}, ${misc:Depends}, lsb-base
 Suggests: ipwatchd-gnotify
 Description: IP conflict detection tool
  IPwatchD is a simple daemon that analyses all incoming ARP packets in order

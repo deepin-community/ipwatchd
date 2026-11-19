@@ -41,7 +41,6 @@ binary-arch: install
 	dh_installchangelogs 
 	dh_installdocs
 	dh_installman debian/ipwatchd.8 debian/ipwatchd.conf.5 debian/ipwatchd-script.1
-	dh_installinit --onlyscripts
 	dh_link
 	dh_strip
 	dh_compress

@@ -34,6 +34,7 @@
 #include <sys/types.h>
 #include <dirent.h>
 #include <stdlib.h>
+#include <errno.h>
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <pwd.h>
@@ -42,6 +43,14 @@
 #include <pcap.h>
 #include <time.h>
 #include <stdarg.h>
+#include <dbus/dbus.h>
+#include <ifaddrs.h>
+#include <netpacket/packet.h>
+
+#define IPWD_DBUS_SERVICE "com.deepin.system.IPWatchD"
+#define IPWD_DBUS_PATH "/com/deepin/system/IPWatchD"
+#define IPWD_POLKIT_ACTION_REQUEST_IP_CONFLICT_CHECK \
+	"com.deepin.system.IPWatchD.request-ip-conflict-check"
 
 
 //! String with IPwatchD version information
@@ -49,6 +58,12 @@
 
 //! Absolute path to pid file
 #define IPWD_PIDFILE "/var/run/ipwatchd.pid"
+
+//! Absolute path to the supported user-defined script
+#define IPWD_USER_SCRIPT "/usr/sbin/ipwatchd-script"
+
+//! Maximum time to wait for a user-defined script
+#define IPWD_SCRIPT_TIMEOUT_SECONDS 10
 
 
 /* Return values */
@@ -86,7 +101,7 @@ IPWD_MSG_TYPE;
 
 //! Protection modes
 typedef enum
-{ 
+{
 	IPWD_PROTECTION_MODE_ACTIVE = 1,		/**< Indicates active protection mode */
 	IPWD_PROTECTION_MODE_PASSIVE = 2,		/**< Indicates passive protection mode */
 }
@@ -94,7 +109,7 @@ IPWD_PROTECTION_MODE;
 
 //! Configuration modes
 typedef enum
-{ 
+{
 	IPWD_CONFIGURATION_MODE_AUTOMATIC = 1,	/**< Indicates automatic configuration mode */
 	IPWD_CONFIGURATION_MODE_MANUAL = 2		/**< Indicates manual configuration mode */
 }
@@ -110,6 +125,7 @@ typedef struct
 	char * script;					/**< Absolute path to user-defined script */
 	int defend_interval;			/**< Minimum interval between defensive ARPs */
 	IPWD_CONFIGURATION_MODE mode;	/**< Configuration mode for network devices */
+	int update_interval;			/**< Interval for updating device information */
 }
 IPWD_S_CONFIG;
 
@@ -130,15 +146,23 @@ typedef enum
 }
 IPWD_DEVICE_STATE;
 
+//! Structure that holds information about ONE IP address on a network interface
+typedef struct
+{
+	char ip[IPWD_MAX_DEVICE_ADDRESS_LEN];		/**< IP address */
+	struct timeval time;						/**< Time information indicating when the last conflict was detected */
+}
+IPWD_S_IP;
+
 //! Structure that holds information about ONE network interface
 typedef struct
 {
 	char device[IPWD_MAX_DEVICE_NAME_LEN];		/**< Device name */
 	IPWD_DEVICE_STATE state;					/**< Indicates if device should be used in conflict detection process */
-	char ip[IPWD_MAX_DEVICE_ADDRESS_LEN];		/**< IP address of device */
 	char mac[IPWD_MAX_DEVICE_ADDRESS_LEN];		/**< MAC address of device */
 	IPWD_PROTECTION_MODE mode;					/**< IPwatch mode on interface */
-	struct timeval time;						/**< Time information indicating when the last conflict was detected */
+	IPWD_S_IP *ips;							/**< Array of IP addresses on this interface */
+	int ipnum;								/**< Number of IP addresses on this interface */
 }
 IPWD_S_DEV;
 
@@ -150,6 +174,15 @@ typedef struct
 }
 IPWD_S_DEVS;
 
+typedef struct IPCONFLICT_DEV_INFO
+{
+	/* data */
+	char ip[IPWD_MAX_DEVICE_ADDRESS_LEN];
+	char mac[IPWD_MAX_DEVICE_ADDRESS_LEN];
+	char remote_mac[IPWD_MAX_DEVICE_ADDRESS_LEN];
+	struct IPCONFLICT_DEV_INFO *next;
+}
+IPCONFLICT_DEV_INFO;
 
 /* ARP packet information */
 
@@ -170,6 +203,17 @@ typedef struct
 }
 IPWD_S_ARP_HEADER;
 
+//! Structure useful for ip conflict check
+typedef struct
+{
+  int stage;
+  const char* ip;
+  const char* misc;
+  IPWD_S_DEV dev;
+  DBusMessage* msg;
+  DBusConnection* conn;
+}
+IPWD_S_CHECK_CONTEXT;
 
 /* IPwatchD internal functions - described in corresponding source files */
 
@@ -180,6 +224,7 @@ void ipwd_analyse (u_char * args, const struct pcap_pkthdr *header, const u_char
 
 /* config.c */
 int ipwd_file_exists (const char *filename);
+int ipwd_validate_user_script (const char *filename);
 int ipwd_read_config (const char *filename);
 
 /* daemonize.c */
@@ -189,13 +234,17 @@ int ipwd_check_pidfile (void);
 
 /* devinfo.c */
 int ipwd_devinfo (const char *p_dev, char *p_ip, char *p_mac);
+int ipwd_devinfo_all_ips (const char *p_dev, char *p_mac, IPWD_S_IP **ips, int *ipnum);
 int ipwd_fill_devices (void);
+int ipwd_update_devices (void);
 
 /* genarp.c */
 int ipwd_genarp (const char *dev, const char *p_sip, const char *p_smac, const char *p_dip, const char *p_dmac, int opcode);
 
 /* ipwatchd.c */
 void ipwd_print_help (void);
+void ipwd_check_context_verify (void);
+void ipwd_check_context_update (void);
 
 /* message.c */
 void ipwd_message (IPWD_MSG_TYPE type, const char *format, ...);
@@ -204,5 +253,22 @@ void ipwd_message (IPWD_MSG_TYPE type, const char *format, ...);
 int ipwd_set_signal_handler (void);
 void ipwd_signal_handler (int signal);
 
-// \endcond Doxygen ignore block end
+/* dbus.c */
+void ipwd_send_signal (DBusConnection *conn, const char *ip, const char *smac, const char *dmac, int is_conflict);
+void ipwd_reply_to_introspect (DBusMessage *msg, DBusConnection *conn);
+void ipwd_reply_to_method (DBusMessage *msg, DBusConnection *conn, const char *mac);
+void ipwd_reply_to_empty_method(DBusMessage *msg, DBusConnection *conn);
+void ipwd_reply_error (DBusMessage *msg, DBusConnection *conn, const char *name, const char *message);
+int ipwd_dbus_check_authorization (DBusMessage *msg, DBusConnection *conn);
+int ipwd_securityloader_init(DBusConnection *conn);
+void ipwd_securityloader_cleanup(void);
+int ipwd_securityloader_authorize(DBusMessage *msg, DBusConnection *conn);
+int ipwd_securityloader_set_allow_caller(DBusMessage *msg, DBusConnection *conn);
+int ipwd_securityloader_get_allow_callers(DBusMessage *msg, DBusConnection *conn);
+void ipwd_securityloader_handle_name_owner_changed(DBusMessage *msg);
 
+/* utils.c */
+int ipwd_local_mac(const struct ether_addr *mac);
+int ipwd_local_mac_by_interface(const char *interface, char **mac);
+
+// \endcond - Doxygen ignore block end

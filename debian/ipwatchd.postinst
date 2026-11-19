@@ -1,0 +1,33 @@
+#!/bin/sh
+# postinst script for ipwatchd
+#
+# Service start/restart is best effort: during a distribution upgrade the
+# systemd/dbus bus may be temporarily unavailable, and a failed start must
+# not abort the whole upgrade.  The service will be started at next boot.
+
+set -e
+
+case "$1" in
+    configure)
+        if [ -x /etc/init.d/ipwatchd ]; then
+            update-rc.d ipwatchd defaults >/dev/null 2>&1 || true
+            if [ -n "$2" ]; then
+                invoke-rc.d ipwatchd restart ||
+                    echo "WARN: ipwatchd restart failed (ignored; will start at next boot)" >&2
+            else
+                invoke-rc.d ipwatchd start ||
+                    echo "WARN: ipwatchd start failed (ignored; will start at next boot)" >&2
+            fi
+        fi
+        ;;
+    abort-upgrade|abort-remove|abort-deconfigure)
+        ;;
+    *)
+        echo "postinst called with unknown argument \`$1'" >&2
+        exit 1
+        ;;
+esac
+
+#DEBHELPER#
+
+exit 0

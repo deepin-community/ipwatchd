@@ -27,7 +27,7 @@
 extern int debug_flag;
 extern IPWD_S_DEVS devices;
 extern IPWD_S_CONFIG config;
-
+extern IPCONFLICT_DEV_INFO *ipconflict_dev_info;
 
 //! Checks existence of the file
 /*!
@@ -51,6 +51,89 @@ int ipwd_file_exists (const char *filename)
 
 	return (IPWD_RV_SUCCESS);
 
+}
+
+static int ipwd_script_path_has_unsafe_characters (const char *filename)
+{
+	const char *unsafe = " \t\r\n\"'`$;&|<>\\(){}[]!*?";
+
+	while (*filename != '\0')
+	{
+		if (strchr (unsafe, *filename) != NULL)
+		{
+			return 1;
+		}
+
+		filename++;
+	}
+
+	return 0;
+}
+
+//! Validates the script configured for conflict notifications
+/*!
+ * \param filename Path to the script
+ * \return IPWD_RV_SUCCESS if the script is safe to execute IPWD_RV_ERROR otherwise
+ */
+int ipwd_validate_user_script (const char *filename)
+{
+	struct stat st;
+
+	if ((filename == NULL) || (filename[0] == '\0'))
+	{
+		ipwd_message (IPWD_MSG_TYPE_ERROR, "Configuration parse error : user_script is empty");
+		return (IPWD_RV_ERROR);
+	}
+
+	if (strcmp (filename, IPWD_USER_SCRIPT) != 0)
+	{
+		ipwd_message (IPWD_MSG_TYPE_ERROR, "Configuration parse error : user_script must be %s", IPWD_USER_SCRIPT);
+		return (IPWD_RV_ERROR);
+	}
+
+	if (filename[0] != '/')
+	{
+		ipwd_message (IPWD_MSG_TYPE_ERROR, "Configuration parse error : user_script %s is not an absolute path", filename);
+		return (IPWD_RV_ERROR);
+	}
+
+	if (ipwd_script_path_has_unsafe_characters (filename) != 0)
+	{
+		ipwd_message (IPWD_MSG_TYPE_ERROR, "Configuration parse error : user_script %s contains unsafe characters", filename);
+		return (IPWD_RV_ERROR);
+	}
+
+	if (lstat (filename, &st) != 0)
+	{
+		ipwd_message (IPWD_MSG_TYPE_ERROR, "Configuration parse error : unable to stat user_script %s - %s", filename, strerror (errno));
+		return (IPWD_RV_ERROR);
+	}
+
+	if (!S_ISREG (st.st_mode))
+	{
+		ipwd_message (IPWD_MSG_TYPE_ERROR, "Configuration parse error : user_script %s is not a regular file", filename);
+		return (IPWD_RV_ERROR);
+	}
+
+	if (st.st_uid != 0)
+	{
+		ipwd_message (IPWD_MSG_TYPE_ERROR, "Configuration parse error : user_script %s is not owned by root", filename);
+		return (IPWD_RV_ERROR);
+	}
+
+	if ((st.st_mode & (S_IWGRP | S_IWOTH)) != 0)
+	{
+		ipwd_message (IPWD_MSG_TYPE_ERROR, "Configuration parse error : user_script %s is writable by group or others", filename);
+		return (IPWD_RV_ERROR);
+	}
+
+	if ((st.st_mode & (S_IXUSR | S_IXGRP | S_IXOTH)) == 0)
+	{
+		ipwd_message (IPWD_MSG_TYPE_ERROR, "Configuration parse error : user_script %s is not executable", filename);
+		return (IPWD_RV_ERROR);
+	}
+
+	return (IPWD_RV_SUCCESS);
 }
 
 
@@ -80,8 +163,15 @@ int ipwd_read_config (const char *filename)
 	config.script = NULL;
 	config.defend_interval = 0;
 	config.mode = IPWD_CONFIGURATION_MODE_AUTOMATIC;
+	config.update_interval = 30;	// Default update interval is 30 seconds
 	devices.dev = NULL;
 	devices.devnum = 0;
+
+	ipconflict_dev_info = (IPCONFLICT_DEV_INFO *)malloc(sizeof(IPCONFLICT_DEV_INFO));
+	memset(ipconflict_dev_info->ip, 0, IPWD_MAX_DEVICE_ADDRESS_LEN);
+	memset(ipconflict_dev_info->mac, 0, IPWD_MAX_DEVICE_ADDRESS_LEN);
+	memset(ipconflict_dev_info->remote_mac, 0, IPWD_MAX_DEVICE_ADDRESS_LEN);
+	ipconflict_dev_info->next = NULL;
 
 	if ((fr = fopen (filename, "r")) == NULL)
 	{
@@ -219,9 +309,8 @@ int ipwd_read_config (const char *filename)
 		/* Path to user-defined script */
 		if (strcasecmp (variable, "user_script") == 0)
 		{
-			if (ipwd_file_exists (value) == IPWD_RV_ERROR)
+			if (ipwd_validate_user_script (value) == IPWD_RV_ERROR)
 			{
-				ipwd_message (IPWD_MSG_TYPE_ERROR, "Configuration parse error : file %s specified as user_script does not exist", value);
 				return (IPWD_RV_ERROR);
 			}
 	
@@ -243,6 +332,20 @@ int ipwd_read_config (const char *filename)
 			if ((config.defend_interval < 0) || (config.defend_interval > 600))
 			{
 				ipwd_message (IPWD_MSG_TYPE_ERROR, "Configuration parse error : defend_interval value must be between 0 and 600");
+				return (IPWD_RV_ERROR);
+			}
+
+			continue;
+		}
+
+		/* Interval for updating device information */
+		if (strcasecmp (variable, "update_interval") == 0)
+		{
+			config.update_interval = strtol (value, NULL, 10);
+
+			if (config.update_interval < 1)
+			{
+				ipwd_message (IPWD_MSG_TYPE_ERROR, "Configuration parse error : update_interval value must be at least 1 second");
 				return (IPWD_RV_ERROR);
 			}
 
@@ -341,9 +444,9 @@ int ipwd_read_config (const char *filename)
 				devices.dev[devices.devnum].mode = IPWD_PROTECTION_MODE_PASSIVE;
 			}
 
-			/* Set time of last conflict */
-			devices.dev[devices.devnum].time.tv_sec = 0;
-			devices.dev[devices.devnum].time.tv_usec = 0;
+			/* Initialize IP addresses array to NULL - will be populated later */
+			devices.dev[devices.devnum].ips = NULL;
+			devices.dev[devices.devnum].ipnum = 0;
 
 			ipwd_message (IPWD_MSG_TYPE_DEBUG, "Found interface %s", devices.dev[devices.devnum].device);
 
@@ -371,12 +474,14 @@ int ipwd_read_config (const char *filename)
 		}
 		else
 		{
-			ipwd_message (IPWD_MSG_TYPE_ERROR, "No interfaces discovered");
-			return (IPWD_RV_ERROR);
+			/* Automatic mode: keep the daemon running even when no interface
+			 * has an IPv4 address yet. Interfaces that appear later (e.g. once
+			 * DHCP has configured the NIC) are picked up periodically by
+			 * ipwd_update_devices(). */
+			ipwd_message (IPWD_MSG_TYPE_INFO, "No interfaces discovered - will retry automatically");
 		}
 	}
 
 	return (IPWD_RV_SUCCESS);
 
 }
-

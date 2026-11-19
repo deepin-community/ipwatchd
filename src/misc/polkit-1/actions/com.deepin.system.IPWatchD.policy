@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE policyconfig PUBLIC
+ "-//freedesktop//DTD PolicyKit Policy Configuration 1.0//EN"
+ "http://www.freedesktop.org/standards/PolicyKit/1/policyconfig.dtd">
+<policyconfig>
+  <vendor>deepin</vendor>
+  <vendor_url>https://www.deepin.org/</vendor_url>
+
+  <action id="com.deepin.system.IPWatchD.request-ip-conflict-check">
+    <description>Request an IP conflict check</description>
+    <message>Authentication is required to request an IP conflict check</message>
+    <message xml:lang="zh_CN">请求 IP 冲突检查需要认证</message>
+    <message xml:lang="zh_TW">請求 IP 衝突檢查需要認證</message>
+    <message xml:lang="zh_HK">請求 IP 衝突檢查需要認證</message>
+    <message xml:lang="bo">IP འགལ་བ་ཞིབ་བཤེར་བྱེད་པར་ར་སྤྲོད་བྱེད་དགོས།</message>
+    <message xml:lang="ug">IP توقۇنۇشىنى تەكشۈرۈش ئۈچۈن دەلىللەش كېرەك</message>
+    <defaults>
+      <allow_any>no</allow_any>
+      <allow_inactive>no</allow_inactive>
+      <allow_active>auth_admin_keep</allow_active>
+    </defaults>
+  </action>
+</policyconfig>

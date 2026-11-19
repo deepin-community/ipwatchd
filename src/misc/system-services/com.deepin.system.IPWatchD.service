@@ -1,0 +1,4 @@
+[D-BUS Service]
+Name=com.deepin.system.IPWatchD
+Exec=/usr/sbin/ipwatchd -c /etc/ipwatchd.conf
+User=root

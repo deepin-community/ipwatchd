@@ -1,15 +1,15 @@
 /* IPwatchD - IP conflict detection tool for Linux
- * Copyright (C) 2007-2018 Jaroslav Imrich <jariq(at)jariq(dot)sk>
- * 
+ * Copyright (C) 2007-2010 Jaroslav Imrich <jariq(at)jariq(dot)sk>
+ *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
  * version 2 as published by the Free Software Foundation.
- *  
+ *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *  
+ *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
@@ -25,6 +25,7 @@
 
 
 extern pcap_t *h_pcap;
+extern volatile int exit_flag;
 
 
 //! Sets signal handler for SIGTERM
@@ -63,7 +64,7 @@ void ipwd_signal_handler (int signal)
 	if (signal == SIGTERM)
 	{
 		pcap_breakloop (h_pcap);
+        exit_flag = 1;
 	}
 
 }
-
